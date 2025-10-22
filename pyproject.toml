@@ -13,5 +13,6 @@ requires-python = ">=3.7"
 [project.scripts]
 relocase = "relocase:cli"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+py-modules = ["relocase"]
+package-dir = {"" = "src"}
