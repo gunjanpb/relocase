@@ -58,22 +58,28 @@ relocase /path/to/source /path/to/target
 
 ## Installation
 
-1.  Clone the repository:
+Install `relocase` using `pipx`:
 
 ```bash
-git clone https://github.com/your-username/relocase.git
+pipx install git+https://github.com/gunjanpb/relocase.git
 ```
 
-2.  Install the dependencies:
+This will install the command-line utility and make it available in your shell.
+
+## Development
+
+To set up a local development environment, create and activate a virtual environment, then install the package in editable mode with the test dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .[test]
 ```
 
-## Testing
+This makes the `relocase` command available in your shell and installs the necessary dependencies for running the test suite.
+
+### Running Tests
 
 To run the test suite, use the following command:
 
 ```bash
-pytest
+python3 -m pytest
 ```
