@@ -61,7 +61,7 @@ relocase /path/to/source /path/to/target
 Install `relocase` using `pipx`:
 
 ```bash
-pipx install git+https://github.com/your-username/relocase.git --force
+pipx install git+https://github.com/gunjanpb/relocase.git
 ```
 
 This will install the command-line utility and make it available in your shell.
