@@ -57,8 +57,8 @@ def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/file1.txt", "target/file1.txt"])
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"])
+        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/file1.txt", "target/file1.txt"], check=True)
+        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"], check=True)
 
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -105,7 +105,7 @@ def test_database_logic(mock_get_md5, mock_get_fs_root):
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
     runner = CliRunner()
     with runner.isolated_filesystem():
-        db_path = "test.db"
+        db_path = os.path.join("target", "test.db")
         # Setup
         os.makedirs("source")
         os.makedirs("target")
@@ -113,11 +113,11 @@ def test_database_logic(mock_get_md5, mock_get_fs_root):
         create_file("target/stale.txt", "stale_content")
 
         # Initial run to populate db
-        runner.invoke(cli, ["source", "target", "--db-name", db_path])
+        runner.invoke(cli, ["source", "target", "--db-name", "test.db"])
 
         # Test Pruning
         os.remove("target/stale.txt")
-        runner.invoke(cli, ["source", "target", "--db-name", db_path])
+        runner.invoke(cli, ["source", "target", "--db-name", "test.db"])
 
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -127,9 +127,63 @@ def test_database_logic(mock_get_md5, mock_get_fs_root):
         # Test Duplicate file handling
         create_file("target/dup1.txt", "content1")
         create_file("target/dup2.txt", "content1")
-        runner.invoke(cli, ["source", "target", "--db-name", db_path])
+        runner.invoke(cli, ["source", "target", "--db-name", "test.db"])
 
         cursor.execute("SELECT * FROM md5_cache WHERE md5=?", (get_md5_from_content("content1"),))
         rows = cursor.fetchall()
         assert len(rows) >= 2 # Should have at least two entries for the same md5
         conn.close()
+
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
+@patch("subprocess.run")
+def test_empty_files_and_directories(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
+    """Test that empty files are handled correctly and empty directories are ignored."""
+    mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        os.makedirs("source/empty_dir")
+        os.makedirs("target")
+
+        create_file("source/empty_file.txt", "")
+
+        result = runner.invoke(cli, ["source", "target"])
+        assert result.exit_code == 0
+        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/empty_file.txt", "target/empty_file.txt"], check=True)
+        assert not os.path.exists("target/empty_dir")
+
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
+@patch("shutil.move")
+def test_identical_content_different_names(mock_shutil_move, mock_get_md5, mock_get_fs_root):
+    """Test that files with identical content but different names are moved."""
+    mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        os.makedirs("source")
+        os.makedirs("target/existing_dir")
+
+        create_file("source/file_new_name.txt", "This is file 1.")
+        create_file("target/existing_dir/file_old_name.txt", "This is file 1.")
+
+        result = runner.invoke(cli, ["source", "target"])
+        assert result.exit_code == 0
+        mock_shutil_move.assert_called_once_with("target/existing_dir/file_old_name.txt", "target/file_new_name.txt")
+
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
+@patch("subprocess.run")
+def test_same_name_different_content(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
+    """Test that files with the same name but different content are transferred."""
+    mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        os.makedirs("source")
+        os.makedirs("target")
+
+        create_file("source/file1.txt", "This is the new content.")
+        create_file("target/file1.txt", "This is the old content.")
+
+        result = runner.invoke(cli, ["source", "target"])
+        assert result.exit_code == 0
+        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/file1.txt", "target/file1.txt"], check=True)

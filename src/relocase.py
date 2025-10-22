@@ -14,9 +14,12 @@ def get_fs_root(path):
     return path
 
 def get_md5(path):
-    """Get the MD5 checksum of a file using the md5sum command."""
-    result = subprocess.run(["md5sum", path], capture_output=True, text=True)
-    return result.stdout.split()[0]
+    """Get the MD5 checksum of a file."""
+    hash_md5 = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 def create_table(conn):
     """Create the md5_cache table if it doesn't exist."""
@@ -31,14 +34,13 @@ def create_table(conn):
     )
 
 def db_connect(target_path, db_name):
-    """Connect to the SQLite database in the target directory's filesystem root."""
-    fs_root = get_fs_root(target_path)
-    db_path = os.path.join(fs_root, db_name)
+    """Connect to the SQLite database in the target directory."""
+    db_path = os.path.join(target_path, db_name)
     conn = sqlite3.connect(db_path)
     create_table(conn)
     return conn
 
-def build_md5_db(target_path, conn):
+def build_md5_db(target_path, conn, db_name):
     """Build a database of MD5 checksums for all files in a directory."""
     md5_db = {}
     cursor = conn.cursor()
@@ -71,7 +73,7 @@ def build_md5_db(target_path, conn):
 
     for file_path in files_to_process:
         # Ignore the database file itself
-        if hasattr(conn, 'database') and os.path.basename(file_path) == os.path.basename(conn.database):
+        if os.path.basename(file_path) == db_name:
             continue
 
         try:
@@ -110,7 +112,7 @@ def cli(source, target, dry_run, db_name):
         create_table(conn)
 
 
-    target_md5_db = build_md5_db(target, conn)
+    target_md5_db = build_md5_db(target, conn, db_name)
     cursor = conn.cursor()
 
     for src_root, _, files in os.walk(source):
@@ -156,7 +158,10 @@ def cli(source, target, dry_run, db_name):
                     click.echo(f"Would transfer: {src_path} -> {target_path}")
                 else:
                     os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                    subprocess.run(["rsync", "-a", src_path, target_path])
+                    try:
+                        subprocess.run(["rsync", "-a", src_path, target_path], check=True)
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        shutil.copy(src_path, target_path)
                     cursor.execute(
                         "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
                         (src_md5, rel_path),
