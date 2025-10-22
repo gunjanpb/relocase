@@ -66,10 +66,20 @@ pipx install git+https://github.com/your-username/relocase.git --force
 
 This will install the command-line utility and make it available in your shell.
 
-## Testing
+## Development
+
+To set up a local development environment, create and activate a virtual environment, then install the package in editable mode with the test dependencies:
+
+```bash
+pip install -e .[test]
+```
+
+This makes the `relocase` command available in your shell and installs the necessary dependencies for running the test suite.
+
+### Running Tests
 
 To run the test suite, use the following command:
 
 ```bash
-pytest
+python3 -m pytest
 ```
