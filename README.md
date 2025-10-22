@@ -58,17 +58,13 @@ relocase /path/to/source /path/to/target
 
 ## Installation
 
-1.  Clone the repository:
+Install `relocase` using `pipx`:
 
 ```bash
-git clone https://github.com/your-username/relocase.git
+pipx install git+https://github.com/your-username/relocase.git --force
 ```
 
-2.  Install the dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+This will install the command-line utility and make it available in your shell.
 
 ## Testing
 

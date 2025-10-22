@@ -2,7 +2,7 @@ import os
 import hashlib
 import sqlite3
 from click.testing import CliRunner
-from src.main import cli
+from relocase import cli
 from unittest.mock import patch, MagicMock
 
 def create_file(path, content):
@@ -22,8 +22,8 @@ def test_cli_help():
     assert result.exit_code == 0
     assert "Usage: relocase [OPTIONS] SOURCE TARGET" in result.output
 
-@patch("src.main.get_fs_root", return_value=".")
-@patch("src.main.get_md5")
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
 def test_dry_run(mock_get_md5, mock_get_fs_root):
     """Test the dry-run functionality."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
@@ -41,8 +41,8 @@ def test_dry_run(mock_get_md5, mock_get_fs_root):
         assert "Would transfer: source/subdir/file2.txt -> target/subdir/file2.txt" in result.output
         assert not os.path.exists("target/file1.txt")
 
-@patch("src.main.get_fs_root", return_value=".")
-@patch("src.main.get_md5")
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
 @patch("subprocess.run")
 def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
     """Test the file transfer functionality."""
@@ -61,8 +61,8 @@ def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
         mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"])
 
 
-@patch("src.main.get_fs_root", return_value=".")
-@patch("src.main.get_md5")
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
 @patch("shutil.move")
 def test_file_move(mock_shutil_move, mock_get_md5, mock_get_fs_root):
     """Test the file move functionality."""
@@ -80,8 +80,8 @@ def test_file_move(mock_shutil_move, mock_get_md5, mock_get_fs_root):
         mock_shutil_move.assert_called_once_with("target/existing_dir/file1.txt", "target/file1.txt")
 
 
-@patch("src.main.get_fs_root", return_value=".")
-@patch("src.main.get_md5")
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
 def test_overwrite_protection(mock_get_md5, mock_get_fs_root):
     """Test that the program does not overwrite existing files."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
@@ -98,8 +98,8 @@ def test_overwrite_protection(mock_get_md5, mock_get_fs_root):
         assert result.exit_code == 0
         assert "Warning: Destination target/file1.txt already exists. Skipping move." in result.output
 
-@patch("src.main.get_fs_root", return_value=".")
-@patch("src.main.get_md5")
+@patch("relocase.get_fs_root", return_value=".")
+@patch("relocase.get_md5")
 def test_database_logic(mock_get_md5, mock_get_fs_root):
     """Test database creation, update, and pruning."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
