@@ -57,8 +57,8 @@ def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/file1.txt", "target/file1.txt"], check=True)
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"], check=True)
+        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/file1.txt", "target/file1.txt"])
+        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"])
 
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -105,7 +105,7 @@ def test_database_logic(mock_get_md5, mock_get_fs_root):
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
     runner = CliRunner()
     with runner.isolated_filesystem():
-        db_path = os.path.join("target", "test.db")
+        db_path = "test.db"
         # Setup
         os.makedirs("source")
         os.makedirs("target")
@@ -149,7 +149,7 @@ def test_empty_files_and_directories(mock_subprocess_run, mock_get_md5, mock_get
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/empty_file.txt", "target/empty_file.txt"], check=True)
+        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/empty_file.txt", "target/empty_file.txt"])
         assert not os.path.exists("target/empty_dir")
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -186,4 +186,4 @@ def test_same_name_different_content(mock_subprocess_run, mock_get_md5, mock_get
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/file1.txt", "target/file1.txt"], check=True)
+        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/file1.txt", "target/file1.txt"])

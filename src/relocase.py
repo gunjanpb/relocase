@@ -14,12 +14,9 @@ def get_fs_root(path):
     return path
 
 def get_md5(path):
-    """Get the MD5 checksum of a file."""
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+    """Get the MD5 checksum of a file using the md5sum command."""
+    result = subprocess.run(["md5sum", path], capture_output=True, text=True)
+    return result.stdout.split()[0]
 
 def create_table(conn):
     """Create the md5_cache table if it doesn't exist."""
@@ -34,8 +31,13 @@ def create_table(conn):
     )
 
 def db_connect(target_path, db_name):
-    """Connect to the SQLite database in the target directory."""
-    db_path = os.path.join(target_path, db_name)
+    """Connect to the SQLite database."""
+    fs_root = get_fs_root(target_path)
+    if fs_root == '/':
+        db_dir = os.path.expanduser("~")
+    else:
+        db_dir = fs_root
+    db_path = os.path.join(db_dir, db_name)
     conn = sqlite3.connect(db_path)
     create_table(conn)
     return conn
@@ -158,10 +160,7 @@ def cli(source, target, dry_run, db_name):
                     click.echo(f"Would transfer: {src_path} -> {target_path}")
                 else:
                     os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                    try:
-                        subprocess.run(["rsync", "-a", src_path, target_path], check=True)
-                    except (subprocess.CalledProcessError, FileNotFoundError):
-                        shutil.copy(src_path, target_path)
+                    subprocess.run(["rsync", "-a", src_path, target_path])
                     cursor.execute(
                         "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
                         (src_md5, rel_path),
