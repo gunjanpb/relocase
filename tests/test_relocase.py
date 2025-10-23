@@ -37,8 +37,7 @@ def test_dry_run(mock_get_md5, mock_get_fs_root):
 
         result = runner.invoke(cli, ["source", "target", "--dry-run"])
         assert result.exit_code == 0
-        assert "Would transfer: source/file1.txt -> target/file1.txt" in result.output
-        assert "Would transfer: source/subdir/file2.txt -> target/subdir/file2.txt" in result.output
+        assert "Would transfer the rest of the files from source to target" in result.output
         assert not os.path.exists("target/file1.txt")
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -47,6 +46,9 @@ def test_dry_run(mock_get_md5, mock_get_fs_root):
 def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
     """Test the file transfer functionality."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    mock_subprocess_run.return_value = MagicMock(
+        stdout=">f.st...... file1.txt\n>f.st...... subdir/file2.txt"
+    )
     runner = CliRunner()
     with runner.isolated_filesystem():
         os.makedirs("source/subdir")
@@ -57,8 +59,11 @@ def test_file_transfer(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/file1.txt", "target/file1.txt"])
-        mock_subprocess_run.assert_any_call(["rsync", "-a", "source/subdir/file2.txt", "target/subdir/file2.txt"])
+        mock_subprocess_run.assert_called_once_with(
+            ["rsync", "-ai", "--out-format=%i %n", "source/", "target"],
+            capture_output=True,
+            text=True,
+        )
 
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -140,6 +145,7 @@ def test_database_logic(mock_get_md5, mock_get_fs_root):
 def test_empty_files_and_directories(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
     """Test that empty files are handled correctly and empty directories are ignored."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    mock_subprocess_run.return_value = MagicMock(stdout=">f.st...... empty_file.txt")
     runner = CliRunner()
     with runner.isolated_filesystem():
         os.makedirs("source/empty_dir")
@@ -149,7 +155,11 @@ def test_empty_files_and_directories(mock_subprocess_run, mock_get_md5, mock_get
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/empty_file.txt", "target/empty_file.txt"])
+        mock_subprocess_run.assert_called_once_with(
+            ["rsync", "-ai", "--out-format=%i %n", "source/", "target"],
+            capture_output=True,
+            text=True,
+        )
         assert not os.path.exists("target/empty_dir")
 
 @patch("relocase.get_fs_root", return_value=".")
@@ -176,6 +186,7 @@ def test_identical_content_different_names(mock_shutil_move, mock_get_md5, mock_
 def test_same_name_different_content(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
     """Test that files with the same name but different content are transferred."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    mock_subprocess_run.return_value = MagicMock(stdout=">f.st...... file1.txt")
     runner = CliRunner()
     with runner.isolated_filesystem():
         os.makedirs("source")
@@ -186,4 +197,8 @@ def test_same_name_different_content(mock_subprocess_run, mock_get_md5, mock_get
 
         result = runner.invoke(cli, ["source", "target"])
         assert result.exit_code == 0
-        mock_subprocess_run.assert_called_once_with(["rsync", "-a", "source/file1.txt", "target/file1.txt"])
+        mock_subprocess_run.assert_called_once_with(
+            ["rsync", "-ai", "--out-format=%i %n", "source/", "target"],
+            capture_output=True,
+            text=True,
+        )

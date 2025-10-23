@@ -116,56 +116,58 @@ def cli(source, target, dry_run, db_name):
 
     target_md5_db = build_md5_db(target, conn, db_name)
     cursor = conn.cursor()
-
+    moves = []
     for src_root, _, files in os.walk(source):
         for file in files:
             src_path = os.path.join(src_root, file)
             rel_path = os.path.relpath(src_path, source)
             target_path = os.path.join(target, rel_path)
-
             src_md5 = get_md5(src_path)
-
             if src_md5 in target_md5_db and target_md5_db[src_md5]:
                 existing_path = target_md5_db[src_md5][0]
                 if existing_path != target_path:
                     if os.path.exists(target_path):
-                        click.echo(f"Warning: Destination {target_path} already exists. Skipping move.")
-                        continue
-
-                    if dry_run:
-                        click.echo(f"Would move: {existing_path} -> {target_path}")
-                    else:
-                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                        shutil.move(existing_path, target_path)
-                        target_md5_db[src_md5].pop(0)
-
-                        old_rel_path = os.path.relpath(existing_path, target)
-                        new_rel_path = os.path.relpath(target_path, target)
-                        cursor.execute(
-                            "DELETE FROM md5_cache WHERE path = ?", (old_rel_path,)
+                        click.echo(
+                            f"Warning: Destination {target_path} already exists. Skipping move."
                         )
-                        cursor.execute(
-                            "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
-                            (src_md5, new_rel_path)
-                        )
-                        conn.commit()
-
-            else:
-                if os.path.exists(target_path):
-                    target_md5 = get_md5(target_path)
-                    if src_md5 == target_md5:
                         continue
-
-                if dry_run:
-                    click.echo(f"Would transfer: {src_path} -> {target_path}")
-                else:
-                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                    subprocess.run(["rsync", "-a", src_path, target_path])
-                    cursor.execute(
-                        "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
-                        (src_md5, rel_path),
-                    )
-                    conn.commit()
+                    moves.append((existing_path, target_path, src_md5))
+                    target_md5_db[src_md5].pop(0)
+    if dry_run:
+        for existing_path, target_path, _ in moves:
+            click.echo(f"Would move: {existing_path} -> {target_path}")
+    else:
+        for existing_path, target_path, src_md5 in moves:
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            shutil.move(existing_path, target_path)
+            old_rel_path = os.path.relpath(existing_path, target)
+            new_rel_path = os.path.relpath(target_path, target)
+            cursor.execute("DELETE FROM md5_cache WHERE path = ?", (old_rel_path,))
+            cursor.execute(
+                "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
+                (src_md5, new_rel_path),
+            )
+        conn.commit()
+    if dry_run:
+        click.echo(f"Would transfer the rest of the files from {source} to {target}")
+    else:
+        source_path = f"{source}/"
+        result = subprocess.run(
+            ["rsync", "-ai", "--out-format=%i %n", source_path, target],
+            capture_output=True,
+            text=True,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith(">f"):
+                filepath = line.split(" ", 1)[1]
+                src_path = os.path.join(source, filepath)
+                rel_path = os.path.relpath(src_path, source)
+                src_md5 = get_md5(src_path)
+                cursor.execute(
+                    "REPLACE INTO md5_cache (md5, path) VALUES (?, ?)",
+                    (src_md5, rel_path),
+                )
+        conn.commit()
 
 
     if conn:
