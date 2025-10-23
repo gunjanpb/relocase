@@ -149,7 +149,17 @@ def cli(source, target, dry_run, db_name):
             )
         conn.commit()
     if dry_run:
-        click.echo(f"Would transfer the rest of the files from {source} to {target}")
+        source_path = f"{source}/"
+        result = subprocess.run(
+            ["rsync", "-ain", "--out-format=%n", source_path, target],
+            capture_output=True,
+            text=True,
+        )
+        for filepath in result.stdout.splitlines():
+            if not filepath.endswith("/"):
+                src_path = os.path.join(source, filepath)
+                target_path = os.path.join(target, filepath)
+                click.echo(f"Would transfer: {src_path} -> {target_path}")
     else:
         source_path = f"{source}/"
         result = subprocess.run(

@@ -24,9 +24,13 @@ def test_cli_help():
 
 @patch("relocase.get_fs_root", return_value=".")
 @patch("relocase.get_md5")
-def test_dry_run(mock_get_md5, mock_get_fs_root):
+@patch("subprocess.run")
+def test_dry_run(mock_subprocess_run, mock_get_md5, mock_get_fs_root):
     """Test the dry-run functionality."""
     mock_get_md5.side_effect = lambda path: get_md5_from_content(open(path).read())
+    mock_subprocess_run.return_value = MagicMock(
+        stdout="file1.txt\nsubdir/file2.txt"
+    )
     runner = CliRunner()
     with runner.isolated_filesystem():
         os.makedirs("source/subdir")
@@ -37,7 +41,8 @@ def test_dry_run(mock_get_md5, mock_get_fs_root):
 
         result = runner.invoke(cli, ["source", "target", "--dry-run"])
         assert result.exit_code == 0
-        assert "Would transfer the rest of the files from source to target" in result.output
+        assert "Would transfer: source/file1.txt -> target/file1.txt" in result.output
+        assert "Would transfer: source/subdir/file2.txt -> target/subdir/file2.txt" in result.output
         assert not os.path.exists("target/file1.txt")
 
 @patch("relocase.get_fs_root", return_value=".")
